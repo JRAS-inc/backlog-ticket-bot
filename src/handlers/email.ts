@@ -1,0 +1,57 @@
+import { SESEvent, Context } from "aws-lambda";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { simpleParser } from "mailparser";
+import { analyzeAndStructure } from "../services/ai";
+import { createIssue } from "../services/backlog";
+
+const s3 = new S3Client({});
+
+export async function handler(event: SESEvent, _context: Context) {
+  for (const record of event.Records) {
+    const messageId = record.ses.mail.messageId;
+    const bucketName = process.env.EMAIL_BUCKET_NAME;
+
+    if (!bucketName) {
+      console.error("EMAIL_BUCKET_NAME が設定されていません");
+      continue;
+    }
+
+    try {
+      // S3からメール本文を取得
+      const s3Response = await s3.send(
+        new GetObjectCommand({
+          Bucket: bucketName,
+          Key: `incoming/${messageId}`,
+        })
+      );
+
+      const rawEmail = await s3Response.Body?.transformToString();
+      if (!rawEmail) {
+        console.error("メール本文が空です:", messageId);
+        continue;
+      }
+
+      // メールをパース
+      const parsed = await simpleParser(rawEmail);
+      const subject = parsed.subject || "(件名なし)";
+      const body = parsed.text || parsed.html || "(本文なし)";
+      const from = parsed.from?.text || "不明";
+
+      const content = `件名: ${subject}\n送信者: ${from}\n\n${body}`;
+
+      // AIで整理
+      const ticket = await analyzeAndStructure(content, "email");
+
+      // Backlogに起票
+      const issue = await createIssue(
+        ticket,
+        `メール (From: ${from}, Subject: ${subject})`
+      );
+
+      console.log(`起票完了: ${issue.issueKey} - ${issue.summary}`);
+    } catch (error) {
+      console.error("メール処理エラー:", messageId, error);
+      throw error;
+    }
+  }
+}

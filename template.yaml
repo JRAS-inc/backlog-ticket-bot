@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Backlog Ticket Bot - メール・Slackから自動起票
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: nodejs22.x
+    MemorySize: 256
+    Environment:
+      Variables:
+        BACKLOG_SPACE_ID: !Ref BacklogSpaceId
+        BACKLOG_API_KEY: !Ref BacklogApiKey
+        BACKLOG_PROJECT_ID: !Ref BacklogProjectId
+        BACKLOG_ISSUE_TYPE_ID: !Ref BacklogIssueTypeId
+        ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+        SLACK_BOT_TOKEN: !Ref SlackBotToken
+        SLACK_SIGNING_SECRET: !Ref SlackSigningSecret
+
+Parameters:
+  BacklogSpaceId:
+    Type: String
+    Description: Backlog スペースID (例: your-space)
+  BacklogApiKey:
+    Type: String
+    NoEcho: true
+    Description: Backlog API キー
+  BacklogProjectId:
+    Type: String
+    Description: Backlog プロジェクトID
+  BacklogIssueTypeId:
+    Type: String
+    Description: Backlog 課題種別ID
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+    Description: Anthropic API キー
+  SlackBotToken:
+    Type: String
+    NoEcho: true
+    Description: Slack Bot Token (xoxb-...)
+  SlackSigningSecret:
+    Type: String
+    NoEcho: true
+    Description: Slack Signing Secret
+
+Resources:
+  EmailHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: dist/
+      Handler: handlers/email.handler
+      Description: SESメール受信 → Backlog起票
+      Environment:
+        Variables:
+          EMAIL_BUCKET_NAME: !Ref EmailBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref EmailBucket
+
+  SlackHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: dist/
+      Handler: handlers/slack.handler
+      Description: Slackメンション → Backlog起票
+      Events:
+        SlackApi:
+          Type: Api
+          Properties:
+            Path: /slack/events
+            Method: post
+
+  EmailBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-emails"
+
+  EmailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref EmailBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ses.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${EmailBucket}/*"
+
+  SESReceiptRuleSet:
+    Type: AWS::SES::ReceiptRuleSet
+    Properties:
+      RuleSetName: !Sub "${AWS::StackName}-ruleset"
+
+  SESReceiptRule:
+    Type: AWS::SES::ReceiptRule
+    Properties:
+      RuleSetName: !Ref SESReceiptRuleSet
+      Rule:
+        Name: !Sub "${AWS::StackName}-rule"
+        Enabled: true
+        Actions:
+          - S3Action:
+              BucketName: !Ref EmailBucket
+              ObjectKeyPrefix: incoming/
+          - LambdaAction:
+              FunctionArn: !GetAtt EmailHandlerFunction.Arn
+
+  SESLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref EmailHandlerFunction
+      Action: lambda:InvokeFunction
+      Principal: ses.amazonaws.com
+
+Outputs:
+  SlackWebhookUrl:
+    Description: SlackアプリのRequest URLに設定
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/slack/events"
+  EmailBucketName:
+    Description: SESがメールを保存するS3バケット名
+    Value: !Ref EmailBucket
