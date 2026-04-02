@@ -25,6 +25,10 @@ export async function createIssue(
     description,
   });
 
+  if (ticket.assigneeId) {
+    body.set("assigneeId", String(ticket.assigneeId));
+  }
+
   const res = await fetch(`${BACKLOG_BASE_URL}/issues?apiKey=${API_KEY}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },

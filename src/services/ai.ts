@@ -5,11 +5,39 @@ export interface TicketData {
   description: string;
   priorityId: number; // 2=高, 3=中, 4=低
   issueTypeId: number; // 課題種別
+  assigneeId?: number; // 担当者ID
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-const SYSTEM_PROMPT = `あなたはプロジェクト管理アシスタントです。
+const BACKLOG_BASE_URL = `https://${process.env.BACKLOG_SPACE_ID}.backlog.com/api/v2`;
+const API_KEY = process.env.BACKLOG_API_KEY!;
+const PROJECT_ID = process.env.BACKLOG_PROJECT_ID!;
+
+interface BacklogUser {
+  id: number;
+  name: string;
+  mailAddress: string;
+}
+
+let cachedUsers: BacklogUser[] | null = null;
+
+async function getProjectUsers(): Promise<BacklogUser[]> {
+  if (cachedUsers) return cachedUsers;
+  const res = await fetch(
+    `${BACKLOG_BASE_URL}/projects/${PROJECT_ID}/users?apiKey=${API_KEY}`
+  );
+  if (!res.ok) return [];
+  cachedUsers = (await res.json()) as BacklogUser[];
+  return cachedUsers;
+}
+
+function buildSystemPrompt(members: BacklogUser[]): string {
+  const memberList = members
+    .map((m) => `- ${m.id}: ${m.name}`)
+    .join("\n");
+
+  return `あなたはプロジェクト管理アシスタントです。
 受け取ったメッセージ(メールやSlack)の内容を分析し、Backlogのチケットとして起票するための情報を整理してください。
 
 メールの場合、「転送者コメント」と「元メール本文」が分かれて渡されます。
@@ -22,7 +50,8 @@ const SYSTEM_PROMPT = `あなたはプロジェクト管理アシスタントで
   "summary": "チケットのタイトル(簡潔に、30文字以内)",
   "description": "チケットの説明(転送者の意図を反映し、背景・要望・対応事項を構造化。元メールの要点も含める)",
   "priorityId": 3,
-  "issueTypeId": 4071592
+  "issueTypeId": 4071592,
+  "assigneeId": null
 }
 
 priorityIdは以下の基準で判断してください:
@@ -36,15 +65,24 @@ issueTypeIdは内容に応じて以下から選んでください:
 - 4071593(要望): 機能追加、改善の提案
 - 4071594(その他): 上記に当てはまらないもの
 
+assigneeIdは、コメントや本文に担当者の指定があれば、以下のメンバーリストからIDを設定してください。
+指定がなければnullにしてください。「横山」「よこやま」など名前の一部やあだ名でも推測してマッチングしてください。
+プロジェクトメンバー:
+${memberList}
+
 JSONのみを返してください。`;
+}
 
 export async function analyzeAndStructure(
   content: string,
   source: "email" | "slack"
 ): Promise<TicketData> {
+  const members = await getProjectUsers();
+  const systemPrompt = buildSystemPrompt(members);
+
   const model = genAI.getGenerativeModel({
     model: "gemini-2.0-flash",
-    systemInstruction: SYSTEM_PROMPT,
+    systemInstruction: systemPrompt,
   });
 
   const result = await model.generateContent(
