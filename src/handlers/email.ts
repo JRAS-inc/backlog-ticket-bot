@@ -104,12 +104,12 @@ export async function handler(event: SESEvent, _context: Context) {
       const issueUrl = `https://${process.env.BACKLOG_SPACE_ID}.backlog.com/view/${issue.issueKey}`;
       console.log(`起票完了: ${issue.issueKey} - ${issue.summary}`);
 
-      // 転送者に確認メールを返信
+      // 転送者に確認メールを返信(失敗しても起票は成功扱い)
       await sendReply(
         from,
         `[起票完了] ${issue.issueKey} ${issue.summary}`,
         `Backlogにチケットを作成しました。\n\n${issue.issueKey}: ${issue.summary}\n${issueUrl}`
-      );
+      ).catch((err) => console.error("返信メール送信失敗:", err));
     } catch (error) {
       console.error("メール処理エラー:", messageId, error);
 
