@@ -2,83 +2,104 @@
 
 メールやSlackからの依頼をAI(Claude)で整理し、Nulab Backlogに自動起票するボット。
 
-## 仕組み
-
-```
-メール → SES → S3 → Lambda → Claude AI → Backlog 起票
-Slack メンション → API Gateway → Lambda → Claude AI → Backlog 起票
-```
-
-- 指定のメールアドレスにメールを転送すると、AIが内容を読み取り、タイトル・説明・優先度を自動で整理してBacklogにチケットを作成
-- Slackでボットにメンションすると、同様にチケットを作成してスレッドにリンクを返信
-
-## 必要なもの
-
-- AWS アカウント (SES, Lambda, S3, API Gateway)
-- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
-- Nulab Backlog アカウント + APIキー
-- Anthropic APIキー
-- Slack App (Bot Token + Signing Secret)
-
-## セットアップ
-
-### 1. Backlog APIキーの取得
-
-1. Backlogにログイン → 個人設定 → API → 「新しいAPIキーを発行」
-2. プロジェクトIDと課題種別IDを確認 (プロジェクト設定から確認可能)
-
-### 2. Slack Appの作成
-
-1. [Slack API](https://api.slack.com/apps) で新しいAppを作成
-2. **Event Subscriptions** を有効化
-3. **Subscribe to bot events** で `app_mention` を追加
-4. **OAuth & Permissions** で `chat:write` スコープを追加
-5. ワークスペースにインストールして Bot Token を取得
-
-### 3. SES ドメイン設定
-
-1. AWS SES でメール受信用のドメインを検証
-2. MXレコードを設定 (例: `10 inbound-smtp.ap-northeast-1.amazonaws.com`)
-
-### 4. デプロイ
-
-```bash
-npm install
-npm run build
-sam deploy --guided
-```
-
-初回デプロイ時にパラメータを聞かれるので、以下を入力:
-
-| パラメータ | 説明 |
-|---|---|
-| BacklogSpaceId | Backlogのスペース名 (URLの `xxx.backlog.com` の `xxx`) |
-| BacklogApiKey | Backlog APIキー |
-| BacklogProjectId | 起票先プロジェクトのID |
-| BacklogIssueTypeId | 課題種別のID |
-| AnthropicApiKey | Anthropic APIキー |
-| SlackBotToken | Slack Bot Token (`xoxb-...`) |
-| SlackSigningSecret | Slack Signing Secret |
-
-### 5. Slack Request URLの設定
-
-デプロイ後に出力される `SlackWebhookUrl` を、SlackアプリのEvent SubscriptionsのRequest URLに設定。
-
 ## 使い方
 
 ### メールから起票
-設定したメールアドレスにメールを転送するだけ。AIが自動で整理して起票します。
 
-### Slackから起票
-チャンネルでボットにメンション:
+**`ticket@ticket.yokoyama-lab.jp`** にメールを転送するだけ。
+
+1. 起票したいメールを開く
+2. 転送ボタンを押す
+3. 一言コメントを書く(殴り書きでOK、誤字脱字はAIが補正します)
+4. 宛先に `ticket@ticket.yokoyama-lab.jp` を入力して送信
+
+AIが以下を自動で判断します:
+- チケットのタイトル
+- 説明文(背景、要望、対応事項を構造化)
+- 優先度(高/中/低)
+- 課題種別(タスク/バグ/要望/その他)
+
+起票が完了すると、転送元のメールアドレスに確認メールが届きます。
+失敗した場合もエラー内容の通知メールが届きます。
+
+#### 例
+
+```
+宛先: ticket@ticket.yokoyama-lab.jp
+
+これ対応おねがい、来週までに
+
+---------- 転送されたメッセージ ----------
+From: client@example.com
+件名: システムのエラーについて
+
+お世話になっております。
+ログイン画面でエラーが出て...
+```
+
+この場合、AIが以下のようなチケットを作成します:
+- タイトル: 「ログイン画面のエラー対応」
+- 種別: バグ
+- 優先度: 高(来週までにという期限あり)
+
+### Slackから起票(準備中)
+
+チャンネルでボットにメンションするとチケットが作成されます。
+Slackアプリの設定が必要です(下記セットアップ参照)。
+
 ```
 @backlog-bot 新規顧客のオンボーディング資料を作成してほしい。来週の火曜日までに。
 ```
-ボットがチケットを作成し、スレッドにリンクを返信します。
 
-## 開発
+## 構成
+
+```
+メール転送 → SES(us-east-1) → S3 → Lambda → Claude AI → Backlog 起票 → 確認メール返信
+Slack メンション → API Gateway → Lambda → Claude AI → Backlog 起票 → スレッド返信
+```
+
+| コンポーネント | 用途 |
+|---|---|
+| AWS SES | メール受信 |
+| AWS S3 | メール一時保存 |
+| AWS Lambda | メール処理 / Slack処理 |
+| Claude API | 内容の整理、タイトル/優先度/種別の自動判定 |
+| Backlog API | チケット作成 |
+
+## セットアップ
+
+### 必要なもの
+
+- AWS アカウント
+- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
+- Nulab Backlog アカウント + APIキー
+- Anthropic APIキー
+
+### デプロイ
 
 ```bash
 npm install
 npm run build
+sam deploy --guided --region us-east-1
 ```
+
+パラメータ:
+
+| パラメータ | 説明 |
+|---|---|
+| BacklogSpaceId | Backlogスペース名 (`xxx.backlog.com` の `xxx`) |
+| BacklogApiKey | Backlog APIキー |
+| BacklogProjectId | プロジェクトID |
+| BacklogIssueTypeId | デフォルト課題種別ID |
+| AnthropicApiKey | Anthropic APIキー |
+| SlackBotToken | Slack Bot Token (後から設定可) |
+| SlackSigningSecret | Slack Signing Secret (後から設定可) |
+
+### Slack連携の追加設定
+
+1. [Slack API](https://api.slack.com/apps) で新しいAppを作成
+2. **Event Subscriptions** を有効化、Request URLにデプロイ出力の `SlackWebhookUrl` を設定
+3. **Subscribe to bot events** で `app_mention` を追加
+4. **OAuth & Permissions** で `chat:write` スコープを追加
+5. ワークスペースにインストールしてBot Tokenを取得
+6. SAMのパラメータを更新して再デプロイ
