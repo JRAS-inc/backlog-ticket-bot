@@ -6,6 +6,32 @@ import { createIssue } from "../services/backlog";
 
 const s3 = new S3Client({});
 
+// 転送メールの区切りパターン (主要メールクライアント対応)
+const FORWARD_SEPARATORS = [
+  /^---------- Forwarded message ---------$/m, // Gmail
+  /^-------- Original Message --------$/m, // Thunderbird
+  /^Begin forwarded message:$/m, // Apple Mail
+  /^-{2,}\s*転送メッセージ\s*-{2,}$/m, // Gmail日本語
+  /^-{2,}\s*Original Message\s*-{2,}$/m, // Outlook
+  /^>{3,}/m, // 引用記号
+];
+
+function splitForwardedEmail(body: string): {
+  comment: string;
+  originalBody: string;
+} {
+  for (const sep of FORWARD_SEPARATORS) {
+    const match = body.match(sep);
+    if (match && match.index !== undefined) {
+      const comment = body.slice(0, match.index).trim();
+      const originalBody = body.slice(match.index).trim();
+      return { comment, originalBody };
+    }
+  }
+  // 区切りが見つからない場合はそのまま全文
+  return { comment: "", originalBody: body };
+}
+
 export async function handler(event: SESEvent, _context: Context) {
   for (const record of event.Records) {
     const messageId = record.ses.mail.messageId;
@@ -37,7 +63,15 @@ export async function handler(event: SESEvent, _context: Context) {
       const body = parsed.text || parsed.html || "(本文なし)";
       const from = parsed.from?.text || "不明";
 
-      const content = `件名: ${subject}\n送信者: ${from}\n\n${body}`;
+      // 転送メールのコメント部分と元メールを分離
+      const { comment, originalBody } = splitForwardedEmail(body);
+
+      const content = [
+        `件名: ${subject}`,
+        `転送者: ${from}`,
+        comment ? `\n転送者コメント:\n${comment}` : "",
+        `\n元メール本文:\n${originalBody}`,
+      ].join("\n");
 
       // AIで整理
       const ticket = await analyzeAndStructure(content, "email");
