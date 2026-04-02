@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export interface TicketData {
   summary: string;
@@ -7,7 +7,7 @@ export interface TicketData {
   issueTypeId: number; // 課題種別
 }
 
-const client = new Anthropic();
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const SYSTEM_PROMPT = `あなたはプロジェクト管理アシスタントです。
 受け取ったメッセージ(メールやSlack)の内容を分析し、Backlogのチケットとして起票するための情報を整理してください。
@@ -42,20 +42,16 @@ export async function analyzeAndStructure(
   content: string,
   source: "email" | "slack"
 ): Promise<TicketData> {
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: `以下の${source === "email" ? "メール" : "Slackメッセージ"}からチケット情報を抽出してください:\n\n${content}`,
-      },
-    ],
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    systemInstruction: SYSTEM_PROMPT,
   });
 
-  const text =
-    message.content[0].type === "text" ? message.content[0].text : "";
+  const result = await model.generateContent(
+    `以下の${source === "email" ? "メール" : "Slackメッセージ"}からチケット情報を抽出してください:\n\n${content}`
+  );
+
+  const text = result.response.text();
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error("AIからの応答をパースできませんでした");

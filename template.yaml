@@ -13,7 +13,7 @@ Globals:
         BACKLOG_API_KEY: !Ref BacklogApiKey
         BACKLOG_PROJECT_ID: !Ref BacklogProjectId
         BACKLOG_ISSUE_TYPE_ID: !Ref BacklogIssueTypeId
-        ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+        GEMINI_API_KEY: !Ref GeminiApiKey
         SLACK_BOT_TOKEN: !Ref SlackBotToken
         SLACK_SIGNING_SECRET: !Ref SlackSigningSecret
 
@@ -34,10 +34,10 @@ Parameters:
     Type: String
     Default: "4071592"
     Description: "Backlog 課題種別ID"
-  AnthropicApiKey:
+  GeminiApiKey:
     Type: String
     NoEcho: true
-    Description: Anthropic API キー
+    Description: Gemini API キー
   SlackBotToken:
     Type: String
     NoEcho: true
