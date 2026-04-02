@@ -20,17 +20,20 @@ Globals:
 Parameters:
   BacklogSpaceId:
     Type: String
-    Description: Backlog スペースID (例: your-space)
+    Default: axon
+    Description: Backlog スペースID
   BacklogApiKey:
     Type: String
     NoEcho: true
     Description: Backlog API キー
   BacklogProjectId:
     Type: String
+    Default: "761638"
     Description: Backlog プロジェクトID
   BacklogIssueTypeId:
     Type: String
-    Description: Backlog 課題種別ID
+    Default: "4071592"
+    Description: Backlog 課題種別ID (デフォルト: タスク)
   AnthropicApiKey:
     Type: String
     NoEcho: true
@@ -88,25 +91,8 @@ Resources:
             Action: s3:PutObject
             Resource: !Sub "arn:aws:s3:::${EmailBucket}/*"
 
-  SESReceiptRuleSet:
-    Type: AWS::SES::ReceiptRuleSet
-    Properties:
-      RuleSetName: !Sub "${AWS::StackName}-ruleset"
-
-  SESReceiptRule:
-    Type: AWS::SES::ReceiptRule
-    Properties:
-      RuleSetName: !Ref SESReceiptRuleSet
-      Rule:
-        Name: !Sub "${AWS::StackName}-rule"
-        Enabled: true
-        Actions:
-          - S3Action:
-              BucketName: !Ref EmailBucket
-              ObjectKeyPrefix: incoming/
-          - LambdaAction:
-              FunctionArn: !GetAtt EmailHandlerFunction.Arn
-
+  # SES Receipt Rule は us-east-1 に CLI で作成済み (backlog-ticket-bot-ruleset)
+  # デプロイ後、EmailHandlerFunction の ARN を使って Receipt Rule を更新する
   SESLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -121,3 +107,9 @@ Outputs:
   EmailBucketName:
     Description: SESがメールを保存するS3バケット名
     Value: !Ref EmailBucket
+  EmailHandlerFunctionArn:
+    Description: SES Receipt Rule に設定する Lambda ARN
+    Value: !GetAtt EmailHandlerFunction.Arn
+  EmailAddress:
+    Description: 起票用メールアドレス
+    Value: ticket@ticket.yokoyama-lab.jp
