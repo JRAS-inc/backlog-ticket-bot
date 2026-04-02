@@ -80,7 +80,7 @@ export async function handler(event: SESEvent, _context: Context) {
       const parsed = await simpleParser(rawEmail);
       const subject = parsed.subject || "(件名なし)";
       const body = parsed.text || parsed.html || "(本文なし)";
-      from = parsed.from?.text || "不明";
+      from = parsed.from?.value?.[0]?.address || "不明";
 
       // 転送メールのコメント部分と元メールを分離
       const { comment, originalBody } = splitForwardedEmail(body);

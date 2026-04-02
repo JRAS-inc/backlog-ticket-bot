@@ -4,7 +4,7 @@
   "description": "メール・Slackからの起票をAIで整理してNulab Backlogに自動登録するボット",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r node_modules dist/",
     "deploy": "npm run build && sam deploy",
     "lint": "eslint src/"
   },

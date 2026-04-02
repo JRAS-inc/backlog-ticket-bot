@@ -4,7 +4,7 @@ Description: Backlog Ticket Bot - メール・Slackから自動起票
 
 Globals:
   Function:
-    Timeout: 30
+    Timeout: 60
     Runtime: nodejs22.x
     MemorySize: 256
     Environment:
@@ -62,6 +62,12 @@ Resources:
             BucketName: !Ref EmailBucket
         - SESCrudPolicy:
             IdentityName: ticket.yokoyama-lab.jp
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: "*"
 
   SlackHandlerFunction:
     Type: AWS::Serverless::Function
