@@ -3,7 +3,7 @@ import { TicketData } from "./ai";
 const BACKLOG_BASE_URL = `https://${process.env.BACKLOG_SPACE_ID}.backlog.com/api/v2`;
 const API_KEY = process.env.BACKLOG_API_KEY!;
 const PROJECT_ID = process.env.BACKLOG_PROJECT_ID!;
-const ISSUE_TYPE_ID = process.env.BACKLOG_ISSUE_TYPE_ID!;
+const DEFAULT_ISSUE_TYPE_ID = process.env.BACKLOG_ISSUE_TYPE_ID || "4071592";
 
 interface BacklogIssue {
   id: number;
@@ -21,7 +21,7 @@ export async function createIssue(
     apiKey: API_KEY,
     projectId: PROJECT_ID,
     summary: ticket.summary,
-    issueTypeId: ISSUE_TYPE_ID,
+    issueTypeId: String(ticket.issueTypeId || DEFAULT_ISSUE_TYPE_ID),
     priorityId: String(ticket.priorityId),
     description,
   });

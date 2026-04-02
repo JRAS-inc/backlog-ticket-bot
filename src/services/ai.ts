@@ -4,6 +4,7 @@ export interface TicketData {
   summary: string;
   description: string;
   priorityId: number; // 2=高, 3=中, 4=低
+  issueTypeId: number; // 課題種別
 }
 
 const client = new Anthropic();
@@ -15,13 +16,20 @@ const SYSTEM_PROMPT = `あなたはプロジェクト管理アシスタントで
 {
   "summary": "チケットのタイトル(簡潔に、30文字以内)",
   "description": "チケットの説明(元の内容を整理し、背景・要望・対応事項を構造化)",
-  "priorityId": 3
+  "priorityId": 3,
+  "issueTypeId": 4071592
 }
 
 priorityIdは以下の基準で判断してください:
 - 2(高): 緊急、障害、期限が迫っている
 - 3(中): 通常の依頼、改善要望
 - 4(低): 要検討、情報共有
+
+issueTypeIdは内容に応じて以下から選んでください:
+- 4071592(タスク): 作業依頼、対応が必要なもの
+- 4071591(バグ): 不具合報告、エラー、障害
+- 4071593(要望): 機能追加、改善の提案
+- 4071594(その他): 上記に当てはまらないもの
 
 JSONのみを返してください。`;
 
