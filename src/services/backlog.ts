@@ -17,19 +17,18 @@ export async function createIssue(
 ): Promise<BacklogIssue> {
   const description = `${ticket.description}\n\n---\n起票元: ${sourceInfo}`;
 
-  const params = new URLSearchParams({
-    apiKey: API_KEY,
+  const body = new URLSearchParams({
     projectId: PROJECT_ID,
     summary: ticket.summary,
-    issueTypeId: String(ticket.issueTypeId || DEFAULT_ISSUE_TYPE_ID),
+    issueTypeId: String(ticket.issueTypeId ?? DEFAULT_ISSUE_TYPE_ID),
     priorityId: String(ticket.priorityId),
     description,
   });
 
-  const res = await fetch(`${BACKLOG_BASE_URL}/issues`, {
+  const res = await fetch(`${BACKLOG_BASE_URL}/issues?apiKey=${API_KEY}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
+    body: body.toString(),
   });
 
   if (!res.ok) {
