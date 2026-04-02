@@ -33,7 +33,7 @@ Parameters:
   BacklogIssueTypeId:
     Type: String
     Default: "4071592"
-    Description: Backlog 課題種別ID (デフォルト: タスク)
+    Description: "Backlog 課題種別ID"
   AnthropicApiKey:
     Type: String
     NoEcho: true
@@ -60,6 +60,8 @@ Resources:
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref EmailBucket
+        - SESCrudPolicy:
+            IdentityName: ticket.yokoyama-lab.jp
 
   SlackHandlerFunction:
     Type: AWS::Serverless::Function
